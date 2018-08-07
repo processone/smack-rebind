@@ -4,13 +4,10 @@ import net.processone.sm.packet.Push;
 import net.processone.sm.packet.Rebind;
 import net.processone.sm.provider.ParseRebind;
 import net.processone.sm.provider.RebindFeatureProvider;
-import org.jivesoftware.smack.SmackException;
-import org.jivesoftware.smack.SynchronizationPoint;
-import org.jivesoftware.smack.XMPPException;
+import org.jivesoftware.smack.*;
 import org.jivesoftware.smack.packet.*;
 import org.jivesoftware.smack.provider.ExtensionElementProvider;
 import org.jivesoftware.smack.provider.ProviderManager;
-import org.jivesoftware.smack.util.SmackExecutorThreadFactory;
 import org.jxmpp.jid.parts.Resourcepart;
 import org.jxmpp.stringprep.XmppStringprepException;
 import org.xmlpull.v1.XmlPullParser;
@@ -19,10 +16,7 @@ import org.xmlpull.v1.XmlPullParserException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.logging.Logger;
 
 /**
@@ -41,7 +35,7 @@ public class P1XMPPTCPConnection extends XMPPTCPConnection {
     private final SynchronizationPoint<SmackException> rebindSyncPoint =
             new SynchronizationPoint<>(this, "EBE rebind element");
     private final ScheduledExecutorService whitespacePingService = Executors.newSingleThreadScheduledExecutor(
-            new SmackExecutorThreadFactory(this, "whitespace pings"));
+            new P1ThreadFactory(this, "whitespace pings"));
     private String rebindStreamId = null;
     private String rebindJid = null;
     private boolean useRebind = true;
@@ -445,6 +439,23 @@ class XmppParserWrapper implements XmlPullParser {
     }
 
 
+private final class P1ThreadFactory implements ThreadFactory {
+    private final int connectionCounterValue;
+    private final String name;
+    private int count = 0;
 
+    public P1ThreadFactory(XMPPConnection connection, String name) {
+        this.connectionCounterValue = connection.getConnectionCounter();
+        this.name = name;
+    }
+
+    @Override
+    public Thread newThread(Runnable runnable) {
+        Thread thread = new Thread(runnable);
+        thread.setName("Smack-" + name + ' ' + count++ + " (" + connectionCounterValue + ")");
+        thread.setDaemon(true);
+        return thread;
+    }
+}
 
 }
