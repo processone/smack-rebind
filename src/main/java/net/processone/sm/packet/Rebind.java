@@ -27,7 +27,12 @@ public class Rebind {
             return NAMESPACE;
         }
 
-        @Override
+        //@Override
+        public CharSequence toXML(String enclosingNamespace) {
+            return this.toXML();
+        }
+
+        //@Override
         public CharSequence toXML() {
             XmlStringBuilder xml = new XmlStringBuilder(this);
             xml.closeEmptyElement();
@@ -49,7 +54,12 @@ public class Rebind {
             this.sid = sid;
         }
 
-        @Override
+        //@Override
+        public CharSequence toXML(String enclosingNamespace) {
+            return this.toXML();
+        }
+
+        //@Override
         public CharSequence toXML() {
             XmlStringBuilder xml = new XmlStringBuilder(this);
             xml.rightAngleBracket();
@@ -91,7 +101,12 @@ public class Rebind {
             return ELEMENT;
         }
 
-        @Override
+        //@Override
+        public CharSequence toXML(String enclosingNamespace) {
+            return this.toXML();
+        }
+
+        //@Override
         public CharSequence toXML() {
             XmlStringBuilder xml = new XmlStringBuilder(this);
             xml.closeEmptyElement();
@@ -115,7 +130,12 @@ public class Rebind {
             return message;
         }
 
-        @Override
+        //@Override
+        public CharSequence toXML(String enclosingNamespace) {
+            return this.toXML();
+        }
+
+        //@Override
         public CharSequence toXML() {
             XmlStringBuilder xml = new XmlStringBuilder(this);
             if (message != null) {

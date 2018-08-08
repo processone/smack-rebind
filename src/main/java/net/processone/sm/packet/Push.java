@@ -87,12 +87,13 @@ public class Push extends IQ {
             if (this.status != null) {
                 xml.halfOpenElement("status");
                 xml.attribute("type", this.status);
+                xml.rightAngleBracket();
                 xml.escape(this.statusMsg);
                 xml.closeElement("status");
             }
             xml.openElement("offline");
             xml.escape(this.offline ? "true" : "false");
-            xml.closeEmptyElement();
+            xml.closeElement("offline");
             xml.openElement("notification");
             xml.element("type", this.deviceType);
             xml.element("id", this.deviceId);
