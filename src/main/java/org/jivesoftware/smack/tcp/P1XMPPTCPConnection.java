@@ -176,6 +176,7 @@ public class P1XMPPTCPConnection extends XMPPTCPConnection {
     @Override
     protected void afterSuccessfulLogin(final boolean resumed) throws SmackException.NotConnectedException, InterruptedException {
         if (resumed) {
+            user = JidCreate.entityFullFromOrNull(this.rebindJid);
             streamId = rebindStreamId;
             pushEnabled = true;
         } else {
