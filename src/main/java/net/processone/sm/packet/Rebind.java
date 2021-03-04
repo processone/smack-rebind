@@ -2,7 +2,10 @@ package net.processone.sm.packet;
 
 import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.Nonza;
+import org.jivesoftware.smack.packet.XmlEnvironment;
 import org.jivesoftware.smack.util.XmlStringBuilder;
+
+import javax.xml.namespace.QName;
 
 /**
  * Created by jpcarlino on 14/03/16.
@@ -10,8 +13,10 @@ import org.jivesoftware.smack.util.XmlStringBuilder;
 public class Rebind {
     public static final String NAMESPACE = "p1:rebind";
 
-    public static final class RebindFeature implements ExtensionElement {
+    public static class RebindFeature implements ExtensionElement {
         public static final String ELEMENT = "rebind";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
+
         public static final RebindFeature INSTANCE = new RebindFeature();
 
         private RebindFeature() {
@@ -27,14 +32,9 @@ public class Rebind {
             return NAMESPACE;
         }
 
-        //@Override
-        public CharSequence toXML(String enclosingNamespace) {
-            return this.toXML();
-        }
-
-        //@Override
-        public CharSequence toXML() {
-            XmlStringBuilder xml = new XmlStringBuilder(this);
+        @Override
+        public CharSequence toXML(XmlEnvironment xmlEnvironment) {
+            XmlStringBuilder xml = new XmlStringBuilder(this, xmlEnvironment);
             xml.closeEmptyElement();
             return xml;
         }
@@ -42,6 +42,7 @@ public class Rebind {
 
     public static class RebindSession implements Nonza {
         public static final String ELEMENT = "rebind";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         public static final Rebind INSTANCE = new Rebind();
 
@@ -54,17 +55,12 @@ public class Rebind {
             this.sid = sid;
         }
 
-        //@Override
-        public CharSequence toXML(String enclosingNamespace) {
-            return this.toXML();
-        }
-
-        //@Override
-        public CharSequence toXML() {
-            XmlStringBuilder xml = new XmlStringBuilder(this);
+        @Override
+        public CharSequence toXML(XmlEnvironment xmlEnvironment) {
+            XmlStringBuilder xml = new XmlStringBuilder(this, xmlEnvironment);
             xml.rightAngleBracket();
-            xml.element("jid",jid);
-            xml.element("sid",sid);
+            xml.element("jid", jid);
+            xml.element("sid", sid);
             xml.closeElement(ELEMENT);
             return xml;
         }
@@ -88,8 +84,11 @@ public class Rebind {
         }
     }
 
-    public static class SuccessRebind implements Nonza {
+    public static class Success implements Nonza {
         public static final String ELEMENT = "rebind";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
+
+        public static final Success INSTANCE = new Success();
 
         @Override
         public String getNamespace() {
@@ -101,14 +100,9 @@ public class Rebind {
             return ELEMENT;
         }
 
-        //@Override
-        public CharSequence toXML(String enclosingNamespace) {
-            return this.toXML();
-        }
-
-        //@Override
-        public CharSequence toXML() {
-            XmlStringBuilder xml = new XmlStringBuilder(this);
+        @Override
+        public CharSequence toXML(XmlEnvironment xmlEnvironment) {
+            XmlStringBuilder xml = new XmlStringBuilder(this, xmlEnvironment);
             xml.closeEmptyElement();
             return xml;
         }
@@ -116,6 +110,7 @@ public class Rebind {
 
     public static class Failure implements Nonza {
         public static final String ELEMENT = "failure";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         private String message;
 
@@ -130,20 +125,14 @@ public class Rebind {
             return message;
         }
 
-        //@Override
-        public CharSequence toXML(String enclosingNamespace) {
-            return this.toXML();
-        }
-
-        //@Override
-        public CharSequence toXML() {
-            XmlStringBuilder xml = new XmlStringBuilder(this);
+        @Override
+        public CharSequence toXML(XmlEnvironment xmlEnvironment) {
+            XmlStringBuilder xml = new XmlStringBuilder(this, xmlEnvironment);
             if (message != null) {
                 xml.rightAngleBracket();
                 xml.append(message);
                 xml.closeElement(ELEMENT);
-            }
-            else {
+            } else {
                 xml.closeEmptyElement();
             }
             return xml;

@@ -2,20 +2,20 @@ package org.jivesoftware.smack.tcp;
 
 import net.processone.sm.packet.Push;
 import net.processone.sm.packet.Rebind;
-import net.processone.sm.provider.ParseRebind;
+import net.processone.sm.provider.RebindFailureProvider;
 import net.processone.sm.provider.RebindFeatureProvider;
-import org.jivesoftware.smack.*;
+import net.processone.sm.provider.RebindSuccessProvider;
+import org.jivesoftware.smack.SmackException;
+import org.jivesoftware.smack.XMPPConnection;
+import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.packet.*;
 import org.jivesoftware.smack.provider.ExtensionElementProvider;
 import org.jivesoftware.smack.provider.ProviderManager;
+import org.jxmpp.jid.impl.JidCreate;
 import org.jxmpp.jid.parts.Resourcepart;
 import org.jxmpp.stringprep.XmppStringprepException;
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.Reader;
 import java.util.concurrent.*;
 import java.util.logging.Logger;
 
@@ -30,29 +30,25 @@ public class P1XMPPTCPConnection extends XMPPTCPConnection {
     static {
         ProviderManager.addStreamFeatureProvider("rebind", "p1:rebind",
                 (ExtensionElementProvider<ExtensionElement>) (Object) new RebindFeatureProvider());
+        ProviderManager.addNonzaProvider(RebindFailureProvider.INSTANCE);
+        ProviderManager.addNonzaProvider(RebindSuccessProvider.INSTANCE);
     }
 
-    private final SynchronizationPoint<SmackException> rebindSyncPoint =
-            new SynchronizationPoint<>(this, "EBE rebind element");
     private final ScheduledExecutorService whitespacePingService = Executors.newSingleThreadScheduledExecutor(
             new P1ThreadFactory(this, "whitespace pings"));
     private String rebindStreamId = null;
     private String rebindJid = null;
-    private boolean useRebind = true;
     private boolean pushEnabled;
     private int pingTimeout = 120;
     private boolean rebindAvailable = false;
     private ScheduledFuture<?> nextWhitespacePing;
-    private final Runnable whitespacePingRunnable = new Runnable() {
-        @Override
-        public void run() {
-            try {
-                writer.write("\n");
-                writer.flush();
-            } catch (IOException ignored) {
-            }
-            P1XMPPTCPConnection.this.scheduleNextWhitespacePing();
+    private final Runnable whitespacePingRunnable = () -> {
+        try {
+            writer.write("\n");
+            writer.flush();
+        } catch (IOException ignored) {
         }
+        P1XMPPTCPConnection.this.scheduleNextWhitespacePing();
     };
 
     public P1XMPPTCPConnection(XMPPTCPConnectionConfiguration config) {
@@ -156,7 +152,7 @@ public class P1XMPPTCPConnection extends XMPPTCPConnection {
      * @return true if server offers push, false otherwise
      */
     public boolean isPushPossible() {
-        return rebindAvailable && useRebind && getRebindSID() != null;
+        return rebindAvailable && getRebindSID() != null;
     }
 
     private void scheduleNextWhitespacePing() {
@@ -193,19 +189,18 @@ public class P1XMPPTCPConnection extends XMPPTCPConnection {
         rebindAvailable = hasFeature(Rebind.RebindFeature.ELEMENT, Rebind.NAMESPACE);
         if (isPushPossible()) {
             try {
-                rebindSyncPoint.sendAndWaitForResponse(new Rebind.RebindSession(rebindJid,
-                        rebindStreamId));
-                if (rebindSyncPoint.wasSuccessful()) {
+                if (sendAndWaitForResponse(
+                        new Rebind.RebindSession(rebindJid, rebindStreamId),
+                        Rebind.Success.class, Rebind.Failure.class).getElementName().equals("rebind"))
+                {
                     LOGGER.fine("EBE rebind success");
                     // Stream rebound
                     afterSuccessfulLogin(true);
                     return;
                 }
+            }catch (Exception ignore) {
                 LOGGER.fine("EBE rebind failed, continuing with normal stream establishment process");
-            } finally {
-                if (!rebindSyncPoint.wasSuccessful()) {
-                    dropEBERebindState();
-                }
+                dropEBERebindState();
             }
         } else if (rebindAvailable) {
             LOGGER.fine("Can't rebind at this time");
@@ -225,238 +220,22 @@ public class P1XMPPTCPConnection extends XMPPTCPConnection {
         scheduleNextWhitespacePing();
     }
 
-    @Override
-    void openStream() throws SmackException, InterruptedException {
-        super.openStream();
-        packetReader.parser = new XmppParserWrapper(packetReader.parser);
-    }
+    private final class P1ThreadFactory implements ThreadFactory {
+        private final int connectionCounterValue;
+        private final String name;
+        private int count = 0;
 
-class XmppParserWrapper implements XmlPullParser {
-        private XmlPullParser baseParser;
-
-        public XmppParserWrapper(XmlPullParser baseParser) {
-            this.baseParser = baseParser;
+        public P1ThreadFactory(XMPPConnection connection, String name) {
+            this.connectionCounterValue = connection.getConnectionCounter();
+            this.name = name;
         }
 
         @Override
-        public void setFeature(String s, boolean b) throws XmlPullParserException {
-            baseParser.setFeature(s, b);
-        }
-
-        @Override
-        public boolean getFeature(String s) {
-            return baseParser.getFeature(s);
-        }
-
-        @Override
-        public void setProperty(String s, Object o) throws XmlPullParserException {
-            baseParser.setProperty(s, o);
-        }
-
-        @Override
-        public Object getProperty(String s) {
-            return baseParser.getProperty(s);
-        }
-
-        @Override
-        public void setInput(Reader reader) throws XmlPullParserException {
-            baseParser.setInput(reader);
-        }
-
-        @Override
-        public void setInput(InputStream inputStream, String s) throws XmlPullParserException {
-            baseParser.setInput(inputStream, s);
-        }
-
-        @Override
-        public String getInputEncoding() {
-            return baseParser.getInputEncoding();
-        }
-
-        @Override
-        public void defineEntityReplacementText(String s, String s1) throws XmlPullParserException {
-            baseParser.defineEntityReplacementText(s, s1);
-        }
-
-        @Override
-        public int getNamespaceCount(int i) throws XmlPullParserException {
-            return baseParser.getNamespaceCount(i);
-        }
-
-        @Override
-        public String getNamespacePrefix(int i) throws XmlPullParserException {
-            return baseParser.getNamespacePrefix(i);
-        }
-
-        @Override
-        public String getNamespaceUri(int i) throws XmlPullParserException {
-            return baseParser.getNamespaceUri(i);
-        }
-
-        @Override
-        public String getNamespace(String s) {
-            return baseParser.getNamespace(s);
-        }
-
-        @Override
-        public int getDepth() {
-            return baseParser.getDepth();
-        }
-
-        @Override
-        public String getPositionDescription() {
-            return baseParser.getPositionDescription();
-        }
-
-        @Override
-        public int getLineNumber() {
-            return baseParser.getLineNumber();
-        }
-
-        @Override
-        public int getColumnNumber() {
-            return baseParser.getColumnNumber();
-        }
-
-        @Override
-        public boolean isWhitespace() throws XmlPullParserException {
-            return baseParser.isWhitespace();
-        }
-
-        @Override
-        public String getText() {
-            return baseParser.getText();
-        }
-
-        @Override
-        public char[] getTextCharacters(int[] ints) {
-            return baseParser.getTextCharacters(ints);
-        }
-
-        @Override
-        public String getNamespace() {
-            return baseParser.getNamespace();
-        }
-
-        @Override
-        public String getName() {
-            return baseParser.getName();
-        }
-
-        @Override
-        public String getPrefix() {
-            return baseParser.getPrefix();
-        }
-
-        @Override
-        public boolean isEmptyElementTag() throws XmlPullParserException {
-            return baseParser.isEmptyElementTag();
-        }
-
-        @Override
-        public int getAttributeCount() {
-            return baseParser.getAttributeCount();
-        }
-
-        @Override
-        public String getAttributeNamespace(int i) {
-            return baseParser.getAttributeNamespace(i);
-        }
-
-        @Override
-        public String getAttributeName(int i) {
-            return baseParser.getAttributeName(i);
-        }
-
-        @Override
-        public String getAttributePrefix(int i) {
-            return baseParser.getAttributePrefix(i);
-        }
-
-        @Override
-        public String getAttributeType(int i) {
-            return baseParser.getAttributeType(i);
-        }
-
-        @Override
-        public boolean isAttributeDefault(int i) {
-            return baseParser.isAttributeDefault(i);
-        }
-
-        @Override
-        public String getAttributeValue(int i) {
-            return baseParser.getAttributeValue(i);
-        }
-
-        @Override
-        public String getAttributeValue(String s, String s1) {
-            return baseParser.getAttributeValue(s, s1);
-        }
-
-        @Override
-        public int getEventType() throws XmlPullParserException {
-            return baseParser.getEventType();
-        }
-
-        @Override
-        public int next() throws XmlPullParserException, IOException {
-            int event = baseParser.next();
-            if (event == XmlPullParser.START_TAG && baseParser.getDepth() == 2) {
-                String name = baseParser.getName();
-                if (name.equals("rebind")) {
-                    ParseRebind.success(baseParser);
-                    rebindSyncPoint.reportSuccess();
-                    return baseParser.next();
-                } else if (name.equals("failure") && baseParser.getNamespace().equals("p1:rebind")) {
-                    Rebind.Failure rebindFailure = ParseRebind.failure(baseParser);
-                    SmackException smackException = new SmackException(rebindFailure.getMessage());
-                    if (rebindSyncPoint.requestSent()) {
-                        rebindSyncPoint.reportFailure(smackException);
-                    }
-                }
-            }
-            return event;
-        }
-
-        @Override
-        public int nextToken() throws XmlPullParserException, IOException {
-            return baseParser.nextToken();
-        }
-
-        @Override
-        public void require(int i, String s, String s1) throws XmlPullParserException, IOException {
-            baseParser.require(i, s, s1);
-        }
-
-        @Override
-        public String nextText() throws XmlPullParserException, IOException {
-            return baseParser.nextText();
-        }
-
-        @Override
-        public int nextTag() throws XmlPullParserException, IOException {
-            return baseParser.nextTag();
+        public Thread newThread(Runnable runnable) {
+            Thread thread = new Thread(runnable);
+            thread.setName("Smack-" + name + ' ' + count++ + " (" + connectionCounterValue + ")");
+            thread.setDaemon(true);
+            return thread;
         }
     }
-
-
-private final class P1ThreadFactory implements ThreadFactory {
-    private final int connectionCounterValue;
-    private final String name;
-    private int count = 0;
-
-    public P1ThreadFactory(XMPPConnection connection, String name) {
-        this.connectionCounterValue = connection.getConnectionCounter();
-        this.name = name;
-    }
-
-    @Override
-    public Thread newThread(Runnable runnable) {
-        Thread thread = new Thread(runnable);
-        thread.setName("Smack-" + name + ' ' + count++ + " (" + connectionCounterValue + ")");
-        thread.setDaemon(true);
-        return thread;
-    }
-}
-
 }
